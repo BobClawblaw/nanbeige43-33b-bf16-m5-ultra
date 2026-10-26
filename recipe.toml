@@ -8,12 +8,17 @@ model_repo = "Nanbeige/Nanbeige4.3-33B"
 model_revision = "c1093c501cc6460427c0ac634db7223d0450c0ee"
 served_name = "nanbeige"
 model_dir = "~/models/Nanbeige4.3-33B"
+# bf16: the release as published, exact (the default). 8bit, 4bit: its MLX affine conversions (python3 -m mac convert),
+# faster tokens for a measured loss against the release (README: 8-bit and 4-bit variants)
+variant = "bf16"
+model_dir_8bit = "~/models/Nanbeige4.3-33B-8bit"
+model_dir_4bit = "~/models/Nanbeige4.3-33B-4bit"
 
 [engine]
 # TensorFold's native Metal engine with the llama family: a worktree of tensorfold_src at tensorfold_sha, built by
 # `python3 -m mac build` under tf_cache; `binary` names a built tensorfold-native instead
 tensorfold_src = "~/github/TensorFold"   # a clone holding tensorfold_sha (github.com/BobClawblaw/TensorFold)
-tensorfold_sha = "fa5b1f989edf5df11c230a64c99e268332544dd5"   # branch nanbeige43
+tensorfold_sha = "e1f447bf330225365c0609c09317fa1ae0c209bc"   # branch nanbeige43
 zig = "zig"                      # Zig 0.17.0
 zig_cpu = "native"
 binary = ""

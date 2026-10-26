@@ -41,6 +41,7 @@ name in upper case overrides both (`PORT=8888 HOST=0.0.0.0 python3 -m mac up`).
 | `prompt_cache_gib` | 8 | kept prompt states between turns; they give way to streams |
 | `load_limit_gb` | 150 | weights, scratch and every stream's caches together (`LLAMA_LOAD_LIMIT_GB`; 0: 75% of RAM) |
 | `drafts` | true | the lane engine's copy drafts (replies are identical with them off) |
+| `variant` | bf16 | `bf16`: the release, exact; `8bit`, `4bit`: its MLX affine conversions ([variants](#8-bit-and-4-bit-variants)) |
 
 **Memory.** The weights take 61.7 GiB. Every one of the 52 layers keeps bf16 keys and values, 208 KiB a token: 26 GiB
 a stream at 131,072, 104 GiB at 524,288. Streams and kept prompts share what `load_limit_gb` leaves; a stream that
@@ -59,7 +60,8 @@ All on one M5 Ultra (256 GB, macOS 27), engine commit fa5b1f98, checkpoint revis
 97 GiB server of another model loaded beside it (the evidence's memory readings include it). The speed and prefill
 evidence names the commit as it was when measured (738e1eb2): the same family code before a docs-only amend and a
 rebase onto TensorFold main, whose logits, greedy replies and served reply are identical to the pinned build's; the
-quick evidence is the pinned build's own.
+bf16 quick evidence names fa5b1f98, the same code before the variants' commit; the variants' evidence names c0243b7e,
+that commit's code before comment-only amends. The pinned commit is e1f447bf.
 
 - **Text, greedy and sampled.** Against Hugging Face's own code (transformers 4.57.1, bf16 on the CPU) on the release:
   1,500 positions teacher-forced, mean KL 0.0015, top-1 99.1%; 64 positions after a 9,000-token prompt, mean KL
@@ -119,6 +121,52 @@ Each keeps the replies' bits; the numbers are this Mac's (`evidence/`).
 - **Thinking.** On by default (the template's); it lengthens replies, not the cost a token; prompt speed with it on is
   within 4% of off.
 - **Not offered.** No int8 or fp8 cache, no fast-math, no reduced-precision sums.
+
+## 8-bit and 4-bit variants
+
+`variant = "8bit"` or `"4bit"` (in `local.toml`, or `VARIANT=8bit`) serves an MLX affine conversion of the release,
+groups of 64, made from the downloaded release by the engine's own converter (`tools/zig/llama_convert.py`, numpy
+only): every projection quantized, q|k|v and gate|up fused into one matrix each, the embedding and norms kept bf16.
+
+```bash
+VARIANT=8bit python3 -m mac convert    # model_dir -> model_dir_8bit (~/models/Nanbeige4.3-33B-8bit), 33.8 GiB, about 2 minutes
+(cd ~/models/Nanbeige4.3-33B-8bit && shasum -a 256 -c PATH_TO_THIS_REPO/checksums/nanbeige4.3-33b-8bit.sha256)
+VARIANT=8bit python3 -m mac up
+```
+
+The 4-bit one is the same with `4bit` (18.9 GiB). The shards' hashes in `checksums/` came from numpy 2.5.4.
+
+**What they cost.** Both are lossy conversions of a release that a 256 GB Mac holds in its own precision, so neither
+is the default. Against the release through HF (bf16 on the CPU) over the same 1,500 positions, and the same six
+64-token greedy chats:
+
+| | bf16 (default) | 8-bit | 4-bit |
+|---|---:|---:|---:|
+| mean KL over 1,500 positions | 0.0015 | 0.0023 | 0.082 |
+| top-1 agreement | 99.1% | 98.9% | 91.1% |
+| 64 positions after a 9,000-token prompt: KL, top-1 | 0.0013, 100% | 0.0015, 100% | 0.046, 95.3% |
+| greedy chats equal to HF's over 64 tokens | 3 of 6 (ties) | 4 of 6 (parts at 19 and 55) | 0 of 6 (parts at 4 to 16) |
+
+One-row steps and windows still give the same logits bit for bit, and every serving check passes for each
+(`evidence/8bit-quick`, `evidence/4bit-quick`: structured 18/18, tools 5/5, sampling 9/9, turns, soak 60/60,
+concurrent 12/12, multi-turn 8/8).
+
+**What they gain**, on the same engine commit (`evidence/8bit-speed`, `8bit-prefill`, `4bit-speed`, `4bit-prefill`):
+
+| | bf16 (default) | 8-bit | 4-bit |
+|---|---:|---:|---:|
+| decode, 1 stream | 16.4 tok/s | 28.4-28.9 tok/s | 48.1-48.8 tok/s |
+| decode, 2 streams, all | 28-32 | 52.5-54.1 | 81.3-84.8 |
+| first token (short prompt) | 0.23-0.26 s | 0.13-0.15 s | 0.10-0.12 s |
+| cold prompt 2.1k / 8.3k / 33k / 61k | 1,259 / 1,313 / 1,074 / 866 tok/s | 1,269 / 1,254 / 1,009 / 815 | 1,344 / 1,312 / 1,044 / 836 |
+| resumed turn, first token | 0.34 s | 0.26 s | 0.22 s |
+
+Decode is faster because a step reads 33.8 or 18.9 GiB instead of 61.7; the 8-bit prompts are a little slower
+because the tensor-unit matmul dequantizes on the way in. The 4-bit conversion is a real loss: a mean KL of 0.082, one
+token in eleven chosen differently, and every greedy chat parting from the release within 16 tokens. It is offered for
+the speed, with that cost stated; the 8-bit one keeps the release's choices 98.9% of the time for 1.75x the tokens.
+
+**Quality.** No quality suite was run for the variants either.
 
 ## Notes
 

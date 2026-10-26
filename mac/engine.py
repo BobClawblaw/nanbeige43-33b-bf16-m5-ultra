@@ -57,6 +57,22 @@ def build_grammar(s: Settings, rebuild: bool = False) -> Path:
 
 
 
+def convert(s: Settings) -> Path:
+    """The release (model_dir) to MLX affine 8-bit or 4-bit (the variant), groups of 64, at model_dir_8bit or
+    model_dir_4bit: the engine's own converter (tools/zig/llama_convert.py, numpy only) from the pinned worktree."""
+    if s.variant not in ("8bit", "4bit"):
+        raise SystemExit("set variant = 8bit or 4bit (local.toml, or VARIANT=8bit) to choose the conversion")
+    script = s.worktree / "tools" / "zig" / "llama_convert.py"
+    if not script.exists():
+        raise SystemExit(f"no converter at {script}: python3 -m mac build first")
+    src = s.path(s.model_dir)
+    if not (src / "config.json").exists():
+        raise SystemExit(f"no release at {src}: hf download {s.model_repo} --revision {s.model_revision} --local-dir {s.model_dir}")
+    out = s.model
+    _run([sys.executable, str(script), str(src), str(out), "--bits", s.variant[0]])
+    return out
+
+
 def build(s: Settings, rebuild: bool = False) -> None:
     build_engine(s, rebuild)
     build_grammar(s, rebuild)
