@@ -1,0 +1,38 @@
+# The recipe's defaults. `local.toml` next to this file overrides them for one Mac (copy local.example.toml); an
+# environment variable of the same name in upper case overrides both (PORT=8896 python3 -m mac up).
+
+[model]
+# Nanbeige's release as published (bf16, 61.7 GiB; nothing is converted):
+# hf download Nanbeige/Nanbeige4.3-33B --revision <model_revision> --local-dir <model_dir>
+model_repo = "Nanbeige/Nanbeige4.3-33B"
+model_revision = "c1093c501cc6460427c0ac634db7223d0450c0ee"
+served_name = "nanbeige"
+model_dir = "~/models/Nanbeige4.3-33B"
+
+[engine]
+# TensorFold's native Metal engine with the llama family: a worktree of tensorfold_src at tensorfold_sha, built by
+# `python3 -m mac build` under tf_cache; `binary` names a built tensorfold-native instead
+tensorfold_src = "~/github/TensorFold"   # a clone holding tensorfold_sha (github.com/BobClawblaw/TensorFold)
+tensorfold_sha = "fa5b1f989edf5df11c230a64c99e268332544dd5"   # branch nanbeige43
+zig = "zig"                      # Zig 0.17.0
+zig_cpu = "native"
+binary = ""
+
+[local]
+host = "127.0.0.1"
+port = 8896
+tf_cache = "~/.cache/nanbeige43-33b"
+
+[serve]
+context = 131072                 # a stream's window; the checkpoint allows 524288
+parallel = 2                     # streams decoded together, each reply equal to its run alone
+max_tokens = 65536               # a reply's default ceiling (thinking is on by default and counts)
+temperature = "1.0"              # the model card's agentic settings for requests that set none
+top_p = "0.95"
+top_k = "-1"
+prompt_cache_gib = 8             # kept prompt states between turns
+load_limit_gb = 150              # LLAMA_LOAD_LIMIT_GB: weights, scratch and every stream's caches (0: 75% of RAM)
+drafts = true                    # the lane engine's copy drafts (replies are identical with them off)
+keep_warm = 86400
+api_key = ""
+extra_args = ""
