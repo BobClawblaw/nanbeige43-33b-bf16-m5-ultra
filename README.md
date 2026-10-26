@@ -125,7 +125,8 @@ Each keeps the replies' bits; the numbers are this Mac's (`evidence/`).
 - **Prompt cache (`prompt_cache_gib`).** A resumed turn starts in 0.34 s against 4.5 s cold, with the same reply;
   kept states give way to streams that need the room.
 - **Drafter (`drafter`).** Nanbeige4.1-3B at 4-bit proposing the next tokens, on by default: 85-114 tokens/s on
-  the harness's speed plan against 16.4 undrafted, 23-30 on ordinary chats, replies identical
+  the harness's speed plan against 16.4 undrafted, 23-30 on ordinary greedy chats, 19-28 sampled, replies identical;
+  two greedy streams together run about 10% slower than undrafted on ordinary prompts
   ([below](#drafter-nanbeige41-3b)). With
   `drafter = false` the lane core's copy drafts alone accepted 0-30% of their tokens on the harness's prompts and gave
   no measurable decode gain (drafted 16 tokens/s, undrafted 16).
@@ -166,9 +167,14 @@ beside an idle 93 GiB server of another model:
 | first token, resumed turn | 0.23-0.26 s, 0.34 s | 0.23-0.26 s, 0.34 s |
 
 The ruler's texts repeat themselves, which the drafter continues almost whole; ordinary chats land 2-4 tokens a
-round for 1.5-3x. Two streams land fewer drafts a round each (the engine trims shared rounds' copies by its own
-prior), and still double the undrafted pair. Every quick-plan check passes with the drafter; the first token keeps
-its time, since the drafter reads the prompt after the model's own prompt pass (about 0.1 s for 1,500 tokens).
+round for 1.5-3x with greedy draws, less when sampling (one stream at temperature 0.7: 18.7-27.9 tok/s against 16.2,
+the greedy drafts landing less often against sampled draws). Two streams land fewer drafts a round each (the engine
+trims shared rounds' copies by its own prior and runs the two drafts in turn): the ruler's texts still doubled the
+undrafted pair, but two greedy streams on ordinary prompts ran about 10% slower than undrafted (TensorFold's
+`bench_concurrent.py`: 27.8 against 31.0 tok/s together on its chat, 29.5 against 34.1 on its code) and two sampled
+streams the same (24.2 against 24.5). The drafter stays on by default for the single-stream gain; `drafter = false`
+serves two busy streams of greedy requests faster. Every quick-plan check passes with the drafter; the first token
+keeps its time, since the drafter reads the prompt after the model's own prompt pass (about 0.1 s for 1,500 tokens).
 
 ## 8-bit and 4-bit variants
 
