@@ -17,6 +17,10 @@ class Settings:
     model_dir: str = ""
     model_dir_8bit: str = ""
     model_dir_4bit: str = ""
+    drafter_repo: str = ""
+    drafter_revision: str = ""
+    drafter_dir: str = ""
+    drafter_dir_4bit: str = ""
     tensorfold_src: str = ""
     tensorfold_sha: str = ""
     zig: str = "zig"
@@ -34,6 +38,7 @@ class Settings:
     prompt_cache_gib: float = 8
     load_limit_gb: float = 150
     drafts: bool = True
+    drafter: bool = True
     keep_warm: int = 86400
     api_key: str = ""
     extra_args: str = ""
@@ -49,8 +54,12 @@ class Settings:
             return self.path(self.model_dir_8bit)
         if self.variant == "4bit":
             return self.path(self.model_dir_4bit)
-        """The served checkpoint: the release as published (bf16)."""
         return self.path(self.model_dir)
+
+    @property
+    def drafter_model(self) -> Path:
+        """The drafter the server loads: the 4-bit conversion `python3 -m mac convert --drafter` writes."""
+        return self.path(self.drafter_dir_4bit)
 
     @property
     def cache(self) -> Path:
@@ -95,6 +104,8 @@ class Settings:
                 a += [flag, value]
         if not self.drafts:
             a.append("--no-drafts")
+        elif self.drafter:
+            a += ["--drafter", str(self.drafter_model), "--drafter-bits", "4"]
         if self.api_key:
             a += ["--api-key", self.api_key]
         a += self.extra_args.split()
@@ -141,6 +152,9 @@ def validate(s: Settings) -> list[str]:
     elif not (s.model / "config.json").exists():
         out.append(f"no checkpoint at {s.model}: hf download {s.model_repo} --revision {s.model_revision} --local-dir {s.model_dir}"
                    + (" then python3 -m mac convert" if s.variant != "bf16" else ""))
+    if s.drafts and s.drafter and not (s.drafter_model / "config.json").exists():
+        out.append(f"no drafter at {s.drafter_model}: hf download {s.drafter_repo} --revision {s.drafter_revision} --local-dir {s.drafter_dir}"
+                   " then python3 -m mac convert --drafter (or drafter = false for the lane engine's copy drafts alone)")
     if s.parallel < 1 or s.parallel > 16:
         out.append("parallel must be 1 to 16")
     if s.context < 1 or s.context > 524288:

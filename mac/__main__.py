@@ -12,7 +12,8 @@ def main(argv: list[str] | None = None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("build", help="the pinned engine and libtfgrammar, under tf_cache")
     b.add_argument("--rebuild", action="store_true")
-    sub.add_parser("convert", help="the release to the variant's MLX affine conversion (variant = 8bit or 4bit) at its model_dir")
+    cv = sub.add_parser("convert", help="the release to the variant's MLX affine conversion (variant = 8bit or 4bit) at its model_dir")
+    cv.add_argument("--drafter", action="store_true", help="instead, the drafter's release to its 4-bit conversion (drafter_dir_4bit)")
     up = sub.add_parser("up", help="start the server (in the background; --foreground for the launchd unit)")
     up.add_argument("--foreground", action="store_true")
     sub.add_parser("down", help="stop the server `up` started")
@@ -32,7 +33,7 @@ def main(argv: list[str] | None = None) -> int:
         engine.build(s, rebuild=a.rebuild)
         print(f"engine {s.run_binary}")
     elif a.cmd == "convert":
-        print(f"converted {engine.convert(s)}")
+        print(f"converted {engine.convert(s, drafter=a.drafter)}")
     elif a.cmd == "up":
         problems = config.validate(s)
         if problems:

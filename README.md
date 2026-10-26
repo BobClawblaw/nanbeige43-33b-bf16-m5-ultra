@@ -17,8 +17,10 @@ Python 3.11+, git, `hf` and [Zig 0.17.0](https://ziglang.org/download/).
 ```bash
 git clone https://github.com/BobClawblaw/TensorFold ~/github/TensorFold
 hf download Nanbeige/Nanbeige4.3-33B --revision c1093c501cc6460427c0ac634db7223d0450c0ee --local-dir ~/models/Nanbeige4.3-33B
+hf download Nanbeige/Nanbeige4.1-3B --revision 9c4555c37921c0982af8fffeee1e0a6e6b953c4f --local-dir ~/models/Nanbeige4.1-3B
 cp local.example.toml local.toml      # then set zig (and paths, if yours differ)
 python3 -m mac build                  # the pinned engine and libtfgrammar, under ~/.cache/nanbeige43-33b
+python3 -m mac convert --drafter      # Nanbeige4.1-3B to 4-bit, the drafter (about a minute; skip with drafter = false)
 python3 -m mac up                     # http://127.0.0.1:8896/v1, model "nanbeige"
 python3 -m mac chat "Write a Python function that merges overlapping intervals."
 ```
@@ -40,7 +42,8 @@ name in upper case overrides both (`PORT=8888 HOST=0.0.0.0 python3 -m mac up`).
 | `temperature`, `top_p`, `top_k` | 1.0, 0.95, off | the model card's agentic settings for requests that set none (it recommends 0.6 for reasoning tasks) |
 | `prompt_cache_gib` | 8 | kept prompt states between turns; they give way to streams |
 | `load_limit_gb` | 150 | weights, scratch and every stream's caches together (`LLAMA_LOAD_LIMIT_GB`; 0: 75% of RAM) |
-| `drafts` | true | the lane engine's copy drafts (replies are identical with them off) |
+| `drafts` | true | drafted windows (replies are identical with them off) |
+| `drafter` | true | Nanbeige4.1-3B proposing the next tokens, 4-bit, verified by the 33B ([drafter](#drafter-nanbeige41-3b)); false: the lane engine's copy drafts alone |
 | `variant` | bf16 | `bf16`: the release, exact; `8bit`, `4bit`: its MLX affine conversions ([variants](#8-bit-and-4-bit-variants)) |
 
 **Memory.** The weights take 61.7 GiB. Every one of the 52 layers keeps bf16 keys and values, 208 KiB a token: 26 GiB
@@ -61,7 +64,9 @@ All on one M5 Ultra (256 GB, macOS 27), engine commit fa5b1f98, checkpoint revis
 evidence names the commit as it was when measured (738e1eb2): the same family code before a docs-only amend and a
 rebase onto TensorFold main, whose logits, greedy replies and served reply are identical to the pinned build's; the
 bf16 quick evidence names fa5b1f98, the same code before the variants' commit; the variants' evidence names c0243b7e,
-that commit's code before comment-only amends. The pinned commit is e1f447bf.
+that commit's code before comment-only amends; the drafter's evidence names e1f447bf with the drafter's changes in
+the tree (committed as 2478811a after the runs, the binary's SHA-256 7d06edaf as measured). The pinned commit is
+2478811a.
 
 - **Text, greedy and sampled.** Against Hugging Face's own code (transformers 4.57.1, bf16 on the CPU) on the release:
   1,500 positions teacher-forced, mean KL 0.0015, top-1 99.1%; 64 positions after a 9,000-token prompt, mean KL
@@ -78,7 +83,10 @@ that commit's code before comment-only amends. The pinned commit is e1f447bf.
   restart, and starts in 0.34 s against 4.5 s cold.
 - **Concurrency.** A 60-turn soak (3 chats of 20 turns beside a decoding stream) and 12 concurrent replies each equal
   the request alone; the suite's streaming 4/4, multi-turn recall 8/8, stop 3/3, thinking 10/10 and max_tokens 3/3.
-- **Drafts.** The checkpoint has no draft head; the engine's copy drafts give the same replies as `drafts = false`.
+- **Drafts.** The checkpoint has no draft head; Nanbeige4.1-3B drafts for it ([below](#drafter-nanbeige41-3b)):
+  drafted greedy tokens equal plain greedy tokens on nine prompts in the engine's own tool, and three served
+  greedy replies (a function, a word problem with thinking, an explanation) equal the undrafted server's token for
+  token, the first the published build's. The quick plan passes in full with the drafter (`evidence/draft-quick`).
 - **Vision.** Not applicable: Nanbeige4.3-33B is text-only.
 
 ## Measured
@@ -116,11 +124,51 @@ Each keeps the replies' bits; the numbers are this Mac's (`evidence/`).
   one of 524,288. Cold prompts run 1.1-1.3k tokens/s to 33k tokens, 866 at 61k and 563 at 131k.
 - **Prompt cache (`prompt_cache_gib`).** A resumed turn starts in 0.34 s against 4.5 s cold, with the same reply;
   kept states give way to streams that need the room.
-- **Copy drafts (`drafts`).** On by default from the lane core, replies equal to `drafts = false`; they accepted 0-30%
-  of their tokens on the harness's prompts and gave no measurable decode gain (drafted 16 tokens/s, undrafted 16).
+- **Drafter (`drafter`).** Nanbeige4.1-3B at 4-bit proposing the next tokens, on by default: 85-114 tokens/s on
+  the harness's speed plan against 16.4 undrafted, 23-30 on ordinary chats, replies identical
+  ([below](#drafter-nanbeige41-3b)). With
+  `drafter = false` the lane core's copy drafts alone accepted 0-30% of their tokens on the harness's prompts and gave
+  no measurable decode gain (drafted 16 tokens/s, undrafted 16).
 - **Thinking.** On by default (the template's); it lengthens replies, not the cost a token; prompt speed with it on is
   within 4% of off.
 - **Not offered.** No int8 or fp8 cache, no fast-math, no reduced-precision sums.
+
+## Drafter: Nanbeige4.1-3B
+
+The 33B's decode is bound by reading 62 GiB of weights each step. Speculative decoding has a smaller model propose
+the next few tokens and the 33B verify them all in one window, which costs about as much as one step; every token
+the 33B keeps is one it would have drawn itself, so replies are the same. [Nanbeige4.1-3B](https://huggingface.co/Nanbeige/Nanbeige4.1-3B)
+is a plain Llama on the same tokenizer (the same 166,100 ids, merges, special tokens and end tokens), so the engine's
+llama family serves it as the drafter beside the 33B:
+
+- `python3 -m mac convert --drafter` writes its 4-bit conversion (2.63 GiB; `checksums/nanbeige4.1-3b-4bit.sha256`)
+  with the same script as the 33B's variants, and `drafter = true` passes it to the server
+  (`--drafter ~/models/Nanbeige4.1-3B-4bit --drafter-bits 4`).
+- Before each round the drafter syncs its own cache to the stream's context (an accepted draft stays, a rejected one
+  is cut), then runs greedy steps chained on the GPU, 3.6 ms each. The depth follows measured rates: the stream's
+  acceptance, the step time and the 33B's window time by rows. A request takes one drafter cache (64 KiB a token, grown
+  in 4,096-row steps as the chat needs) that keeps its tokens between requests, so a continued chat is not fed again.
+- The drafter's weights are lossy, which changes no reply: the 33B's own draws decide every token. The bf16 release of
+  the drafter (`--drafter-bits 0`) lands more drafts but takes 8.5 ms a step and gives no more tokens a second.
+
+Checked in the engine's own tool, which decodes greedily through the drafter's windows: on eight chat prompts (128
+tokens, thinking on and off, English and Chinese) and after a 1,500-token prompt (256 tokens) the drafted tokens
+equal the plain greedy tokens exactly, at 24-46 tokens/s against 16.2, with 1.8-4.1 tokens landing a round
+(the engine doc's table has each prompt). Served, on the harness's plans (`evidence/draft-quick`, `evidence/draft-speed`),
+beside an idle 93 GiB server of another model:
+
+| | undrafted | drafted |
+|---|---:|---:|
+| one stream, the ruler's prose / code / structured / list (256 tokens) | 16.4 / 16.3 / 16.4 / 16.4 tok/s | 113.5 / 111.0 / 108.5 / 84.9 |
+| two streams together, the same | 31.8 / 28.0 / 31.7 / 31.7 | 63.3 / 64.3 / 63.8 / 58.3 |
+| one stream's rounds | 61 ms, 1 token | 47 ms, 4.9 tokens (81% of drafts land) |
+| three greedy chats, whole requests (prompt and reply) | 15.7 / 16.0 / 16.1 tok/s | 30.2 / 22.9 / 26.6 |
+| first token, resumed turn | 0.23-0.26 s, 0.34 s | 0.23-0.26 s, 0.34 s |
+
+The ruler's texts repeat themselves, which the drafter continues almost whole; ordinary chats land 2-4 tokens a
+round for 1.5-3x. Two streams land fewer drafts a round each (the engine trims shared rounds' copies by its own
+prior), and still double the undrafted pair. Every quick-plan check passes with the drafter; the first token keeps
+its time, since the drafter reads the prompt after the model's own prompt pass (about 0.1 s for 1,500 tokens).
 
 ## 8-bit and 4-bit variants
 

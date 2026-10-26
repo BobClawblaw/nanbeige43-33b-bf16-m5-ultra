@@ -57,19 +57,21 @@ def build_grammar(s: Settings, rebuild: bool = False) -> Path:
 
 
 
-def convert(s: Settings) -> Path:
+def convert(s: Settings, drafter: bool = False) -> Path:
     """The release (model_dir) to MLX affine 8-bit or 4-bit (the variant), groups of 64, at model_dir_8bit or
-    model_dir_4bit: the engine's own converter (tools/zig/llama_convert.py, numpy only) from the pinned worktree."""
-    if s.variant not in ("8bit", "4bit"):
-        raise SystemExit("set variant = 8bit or 4bit (local.toml, or VARIANT=8bit) to choose the conversion")
+    model_dir_4bit; with `drafter`, the drafter's release (drafter_dir) to 4-bit at drafter_dir_4bit. Both through the
+    engine's own converter (tools/zig/llama_convert.py, numpy only) from the pinned worktree."""
+    if not drafter and s.variant not in ("8bit", "4bit"):
+        raise SystemExit("set variant = 8bit or 4bit (local.toml, or VARIANT=8bit) to choose the conversion, or pass --drafter")
     script = s.worktree / "tools" / "zig" / "llama_convert.py"
     if not script.exists():
         raise SystemExit(f"no converter at {script}: python3 -m mac build first")
-    src = s.path(s.model_dir)
+    src = s.path(s.drafter_dir if drafter else s.model_dir)
     if not (src / "config.json").exists():
-        raise SystemExit(f"no release at {src}: hf download {s.model_repo} --revision {s.model_revision} --local-dir {s.model_dir}")
-    out = s.model
-    _run([sys.executable, str(script), str(src), str(out), "--bits", s.variant[0]])
+        repo, rev, d = (s.drafter_repo, s.drafter_revision, s.drafter_dir) if drafter else (s.model_repo, s.model_revision, s.model_dir)
+        raise SystemExit(f"no release at {src}: hf download {repo} --revision {rev} --local-dir {d}")
+    out = s.drafter_model if drafter else s.model
+    _run([sys.executable, str(script), str(src), str(out), "--bits", "4" if drafter else s.variant[0]])
     return out
 
 
