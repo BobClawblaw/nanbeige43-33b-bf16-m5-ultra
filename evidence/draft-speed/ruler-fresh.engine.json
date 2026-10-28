@@ -5,26 +5,26 @@
    "prompt": 735,
    "cached": 0,
    "tokens": 2652,
-   "rounds": 539,
-   "accepted": 2104,
-   "proposed": 2604,
-   "tokens_a_round": 4.92,
-   "drafts_a_round": 4.831,
-   "accept_rate": 0.808,
-   "ms_a_round": 47.08
+   "rounds": 544,
+   "accepted": 2096,
+   "proposed": 2454,
+   "tokens_a_round": 4.875,
+   "drafts_a_round": 4.511,
+   "accept_rate": 0.8541,
+   "ms_a_round": 46.47
   },
   "2": {
    "requests": 25,
    "prompt": 1502,
    "cached": 0,
    "tokens": 5480,
-   "rounds": 2018,
-   "accepted": 3441,
-   "proposed": 4271,
-   "tokens_a_round": 2.716,
-   "drafts_a_round": 2.116,
-   "accept_rate": 0.8057,
-   "ms_a_round": 87.01
+   "rounds": 1207,
+   "accepted": 4254,
+   "proposed": 4805,
+   "tokens_a_round": 4.54,
+   "drafts_a_round": 3.981,
+   "accept_rate": 0.8853,
+   "ms_a_round": 169.8
   }
  }
 }

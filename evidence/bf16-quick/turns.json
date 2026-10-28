@@ -2,8 +2,8 @@
  "turn1": {
   "status": 200,
   "text": "Here are three rivers in Europe:\n\n1. **Rhine River** \u2013 Flows through Switzerland, Germany, and the Netherlands before emptying into the North Sea.\n2. **Danube River** \u2013 The second-longest river in",
-  "ttft": 4.674,
-  "ttft_any": 4.674,
+  "ttft": 4.94,
+  "ttft_any": 4.94,
   "usage": {
    "prompt_tokens": 5511,
    "completion_tokens": 48,
@@ -15,15 +15,15 @@
     "reasoning_tokens": 0
    }
   },
-  "s": 7.634,
+  "s": 7.92,
   "finish": "length",
   "tool_calls": null
  },
  "turn2": {
   "status": 200,
   "text": "Of the three rivers named earlier, the **Danube River** is the longest.\n\n* **Danube:** approximately **2,850 km** (about 1,770 miles)\n* **Rhine",
-  "ttft": 0.311,
-  "ttft_any": 0.311,
+  "ttft": 0.323,
+  "ttft_any": 0.323,
   "usage": {
    "prompt_tokens": 5581,
    "completion_tokens": 48,
@@ -35,15 +35,15 @@
     "reasoning_tokens": 0
    }
   },
-  "s": 3.268,
+  "s": 3.331,
   "finish": "length",
   "tool_calls": null
  },
  "turn3": {
   "status": 200,
   "text": "Of the three rivers named earlier, the **Rhine River** is the shortest.\n\n* **Rhine:** approximately **1,230 km** (about 765 miles)\n* **Po River:** approximately",
-  "ttft": 0.344,
-  "ttft_any": 0.344,
+  "ttft": 0.357,
+  "ttft_any": 0.357,
   "usage": {
    "prompt_tokens": 5649,
    "completion_tokens": 48,
@@ -55,15 +55,15 @@
     "reasoning_tokens": 0
    }
   },
-  "s": 3.012,
+  "s": 3.091,
   "finish": "length",
   "tool_calls": null
  },
  "turn3_again": {
   "status": 200,
   "text": "Of the three rivers named earlier, the **Rhine River** is the shortest.\n\n* **Rhine:** approximately **1,230 km** (about 765 miles)\n* **Po River:** approximately",
-  "ttft": 0.344,
-  "ttft_any": 0.344,
+  "ttft": 0.364,
+  "ttft_any": 0.364,
   "usage": {
    "prompt_tokens": 5649,
    "completion_tokens": 48,
@@ -75,15 +75,15 @@
     "reasoning_tokens": 0
    }
   },
-  "s": 3.01,
+  "s": 3.096,
   "finish": "length",
   "tool_calls": null
  },
  "turn3_cold": {
   "status": 200,
   "text": "Of the three rivers named earlier, the **Rhine River** is the shortest.\n\n* **Rhine:** approximately **1,230 km** (about 765 miles)\n* **Po River:** approximately",
-  "ttft": 4.397,
-  "ttft_any": 4.397,
+  "ttft": 4.6,
+  "ttft_any": 4.6,
   "usage": {
    "prompt_tokens": 5649,
    "completion_tokens": 48,
@@ -95,7 +95,7 @@
     "reasoning_tokens": 0
    }
   },
-  "s": 7.067,
+  "s": 7.309,
   "finish": "length",
   "tool_calls": null
  }

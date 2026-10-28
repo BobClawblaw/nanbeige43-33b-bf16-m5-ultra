@@ -2,12 +2,16 @@
 
 Serves [Nanbeige4.3-33B](https://huggingface.co/Nanbeige/Nanbeige4.3-33B), Nanbeige's 33B dense Llama-architecture
 model with a 512K-token context, from its bf16 release as published, with TensorFold's native Metal engine, as an
-OpenAI-compatible server with reasoning, tool calls, structured output, the prompt cache and two streams. Nothing is
+OpenAI-compatible server with reasoning, tool calls, structured output, the prompt cache and two streams, with
+[Nanbeige4.1-3B](https://huggingface.co/Nanbeige/Nanbeige4.1-3B) drafting for it (replies unchanged). Nothing is
 converted: the weights are 61.7 GiB, which a 128 GB or 256 GB Mac holds as released, so there was no reason for a
-lossy quantization.
+lossy quantization. The drafter is served from its bf16 release as published, too.
 
-The engine's `llama` Metal family is new with this recipe: branch `nanbeige43` on
-[BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/nanbeige43), pinned in `recipe.toml`.
+The engine's `llama` Metal family is new with this recipe and under review upstream as
+[ashhart/TensorFold#1415](https://github.com/ashhart/TensorFold/pull/1415) (the family) and
+[#1417](https://github.com/ashhart/TensorFold/pull/1417) (the drafter): branch `llama-drafter-pr` on
+[BobClawblaw/TensorFold](https://github.com/BobClawblaw/TensorFold/tree/llama-drafter-pr), which carries both, is
+pinned in `recipe.toml`.
 
 ## Quick start
 
@@ -20,7 +24,6 @@ hf download Nanbeige/Nanbeige4.3-33B --revision c1093c501cc6460427c0ac634db7223d
 hf download Nanbeige/Nanbeige4.1-3B --revision 9c4555c37921c0982af8fffeee1e0a6e6b953c4f --local-dir ~/models/Nanbeige4.1-3B
 cp local.example.toml local.toml      # then set zig (and paths, if yours differ)
 python3 -m mac build                  # the pinned engine and libtfgrammar, under ~/.cache/nanbeige43-33b
-python3 -m mac convert --drafter      # Nanbeige4.1-3B to 4-bit, the drafter (about a minute; skip with drafter = false)
 python3 -m mac up                     # http://127.0.0.1:8896/v1, model "nanbeige"
 python3 -m mac chat "Write a Python function that merges overlapping intervals."
 ```
@@ -43,8 +46,7 @@ name in upper case overrides both (`PORT=8888 HOST=0.0.0.0 python3 -m mac up`).
 | `prompt_cache_gib` | 8 | kept prompt states between turns; they give way to streams |
 | `load_limit_gb` | 150 | weights, scratch and every stream's caches together (`LLAMA_LOAD_LIMIT_GB`; 0: 75% of RAM) |
 | `drafts` | true | drafted windows (replies are identical with them off) |
-| `drafter` | true | Nanbeige4.1-3B proposing the next tokens, 4-bit, verified by the 33B ([drafter](#drafter-nanbeige41-3b)); false: the lane engine's copy drafts alone |
-| `variant` | bf16 | `bf16`: the release, exact; `8bit`, `4bit`: its MLX affine conversions ([variants](#8-bit-and-4-bit-variants)) |
+| `drafter` | true | Nanbeige4.1-3B proposing the next tokens, verified by the 33B ([drafter](#drafter-nanbeige41-3b)); false: the lane engine's copy drafts alone |
 
 **Memory.** The weights take 61.7 GiB. Every one of the 52 layers keeps bf16 keys and values, 208 KiB a token: 26 GiB
 a stream at 131,072, 104 GiB at 524,288. Streams and kept prompts share what `load_limit_gb` leaves; a stream that
@@ -59,14 +61,12 @@ server parses into `tool_calls`.
 
 ## What works, and how it was checked
 
-All on one M5 Ultra (256 GB, macOS 27), engine commit fa5b1f98, checkpoint revision c1093c50, with an idle
-97 GiB server of another model loaded beside it (the evidence's memory readings include it). The speed and prefill
-evidence names the commit as it was when measured (738e1eb2): the same family code before a docs-only amend and a
-rebase onto TensorFold main, whose logits, greedy replies and served reply are identical to the pinned build's; the
-bf16 quick evidence names fa5b1f98, the same code before the variants' commit; the variants' evidence names c0243b7e,
-that commit's code before comment-only amends; the drafter's evidence names e1f447bf with the drafter's changes in
-the tree (committed as 2478811a after the runs, the binary's SHA-256 7d06edaf as measured). The pinned commit is
-2478811a.
+All on one M5 Ultra (256 GB, macOS 27), checkpoint revision c1093c50. The serving checks, speed and prompt numbers
+were measured on the pinned engine commit 50fe245a on 28 Oct 2026, with no other model loaded
+(`evidence/bf16-*` without the drafter, `evidence/draft-*` with it), except the 61k and 131k cold prompts and the
+256k setting, measured on the family's first build (738e1eb2, `evidence/bf16-prefill-256k`). The exactness checks
+against Hugging Face and the 128k passphrase check were run on the family's first build too; the pinned build's logits over the same 1,500
+positions are bit-identical to that build's.
 
 - **Text, greedy and sampled.** Against Hugging Face's own code (transformers 4.57.1, bf16 on the CPU) on the release:
   1,500 positions teacher-forced, mean KL 0.0015, top-1 99.1%; 64 positions after a 9,000-token prompt, mean KL
@@ -80,56 +80,63 @@ the tree (committed as 2478811a after the runs, the binary's SHA-256 7d06edaf as
 - **Tools and structured output.** The harness's structured check (json_object, json_schema, regex, choice,
   grammar) 18/18 and drafted == plain 12/12; its tool cases (auto, required, named, thinking, streamed) 5/5.
 - **Prompt cache.** A turn resumed from a kept state (5,493 of 5,649 tokens) equals the same request after a
-  restart, and starts in 0.34 s against 4.5 s cold.
+  restart, and starts in 0.35 s against 4.4 s cold.
 - **Concurrency.** A 60-turn soak (3 chats of 20 turns beside a decoding stream) and 12 concurrent replies each equal
   the request alone; the suite's streaming 4/4, multi-turn recall 8/8, stop 3/3, thinking 10/10 and max_tokens 3/3.
 - **Drafts.** The checkpoint has no draft head; Nanbeige4.1-3B drafts for it ([below](#drafter-nanbeige41-3b)):
-  drafted greedy tokens equal plain greedy tokens on nine prompts in the engine's own tool, and three served
-  greedy replies (a function, a word problem with thinking, an explanation) equal the undrafted server's token for
-  token, the first the published build's. The quick plan passes in full with the drafter (`evidence/draft-quick`).
+  drafted greedy tokens equal plain greedy tokens on nine prompts in the engine's own tool, eight fresh prompts
+  served two at a time return the undrafted server's token ids, and the quick plan passes in full with the drafter
+  (`evidence/draft-quick`: structured 18/18 with drafted == plain 12/12, sampling 9/9 equal to undrafted, soak 60/60,
+  concurrent 12/12).
 - **Vision.** Not applicable: Nanbeige4.3-33B is text-only.
 
 ## Measured
 
-Through [recipe-harness](https://github.com/BobClawblaw/recipe-harness) (target `nanbeige43-33b-m5`, the qwen Spark
-recipe's ruler at suite commit 277c842a1481), greedy, 256-token replies; the raw results are in `evidence/`.
+Through [recipe-harness](https://github.com/BobClawblaw/recipe-harness) (targets `nanbeige43-33b-m5` and, with the
+drafter, `nanbeige43-33b-bf16draft-m5`; the qwen Spark recipe's ruler at suite commit 277c842a1481), greedy,
+256-token replies, engine 50fe245a; the raw results are in `evidence/`.
 
-| streams | prose | code | structured | list | first token |
-|---:|---:|---:|---:|---:|---:|
-| 1 | 16.4 | 16.3 | 16.4 | 16.4 | 0.23-0.26 s |
-| 2 | 31.8 | 28.0 | 31.7 | 31.7 | 0.34-0.38 s |
+| | streams | prose | code | structured | list | first token |
+|---|---:|---:|---:|---:|---:|---:|
+| undrafted | 1 | 16.3 | 16.2 | 16.3 | 16.3 | 0.23-0.26 s |
+| undrafted | 2 | 31.7 | 27.8 | 31.4 | 31.6 | 0.34-0.39 s |
+| drafted (default) | 1 | 113.9 | 108.3 | 98.6 | 98.9 | 0.23-0.26 s |
+| drafted (default) | 2 | 44.6 | 59.0 | 54.4 | 55.9 | 0.35-0.39 s |
 
-Tokens a second, all streams together (`evidence/bf16-speed`). One stream reads the 61.7 GiB of weights each step
-(61 ms); two streams read them once for both rows (66 ms a round). Sampled replies decode at 16.2-16.3 tokens/s, the
-same as greedy.
+Tokens a second, all streams together (`evidence/bf16-speed`, `evidence/draft-speed`). Undrafted, one stream reads
+the 61.7 GiB of weights each step (61.7 ms); two streams read them once for both rows (66.8 ms a round). The ruler's
+texts repeat themselves, which the drafter continues almost whole (4.9 tokens a round, 85% of drafts kept); ordinary
+chats gain less ([drafter](#drafter-nanbeige41-3b)).
 
-| cold prompt | 2,109 | 8,254 | 32,827 | 61,502 | 131,132 tokens |
+| cold prompt | 2,111 | 8,253 | 32,831 | 61,502 | 131,132 tokens |
 |---|---:|---:|---:|---:|---:|
-| tokens a second | 1,259 | 1,313 | 1,074 | 866 | 563 |
-| time to first token | 1.68 s | 6.29 s | 30.6 s | 71.0 s | 233 s |
+| tokens a second | 1,250 | 1,303 | 1,062 | 866 | 563 |
+| time to first token | 1.69 s | 6.33 s | 30.9 s | 71.0 s | 233 s |
 
-A fresh server, each prompt starting with words no earlier one did (`evidence/bf16-prefill`; the 131,132-token prompt
-on the 262,144-token setting, `evidence/bf16-prefill-256k`; with thinking on, within 4%). A multi-turn chat's third
-turn, resumed from 5,493 of its 5,649 tokens, starts in 0.34 s against 4.5 s cold (`evidence/bf16-quick`).
+A fresh server, each prompt starting with words no earlier one did, undrafted (`evidence/bf16-prefill`; with thinking
+on, within 1%; with the drafter, 2-4% slower, `evidence/draft-prefill`). The 61k and 131k prompts were measured on
+the family's first build (`evidence/bf16-prefill-738e1eb2`; the 131,132-token prompt on the 262,144-token setting,
+`evidence/bf16-prefill-256k`): a 131k prompt does not fit the default 131,072-token window, which refuses it by name.
+A multi-turn chat's third turn, resumed from 5,493 of its 5,649 tokens, starts in 0.35 s against 4.4 s cold
+(`evidence/bf16-speed`; 0.36 s with the drafter).
 
 ## Performance options
 
 Each keeps the replies' bits; the numbers are this Mac's (`evidence/`).
 
-- **Streams (`parallel`).** One stream decodes at 16.4 tokens/s, bound by reading the weights each step. Two streams
-  give 28-32 tokens/s in all (66 ms a round against 61), each reply equal to its run alone; the first token moves
-  from 0.23-0.26 s to 0.34-0.38 s. The engine's row kernel holds up to 32 rows a launch; the caches set the count.
+- **Streams (`parallel`).** One undrafted stream decodes at 16.3 tokens/s, bound by reading the weights each step.
+  Two streams give 28-32 tokens/s in all (67 ms a round against 62), each reply equal to its run alone; the first
+  token moves from 0.23-0.26 s to 0.34-0.39 s. The engine's row kernel holds up to 32 rows a launch; the caches set the count.
 - **Weights.** The release's bf16 is exact and is the only form served; no quantized conversion is offered.
 - **Context and memory (`context`, `load_limit_gb`).** 208 KiB a token: 150 GB holds two 131,072-token streams, 192 GB
   one of 524,288. Cold prompts run 1.1-1.3k tokens/s to 33k tokens, 866 at 61k and 563 at 131k.
-- **Prompt cache (`prompt_cache_gib`).** A resumed turn starts in 0.34 s against 4.5 s cold, with the same reply;
+- **Prompt cache (`prompt_cache_gib`).** A resumed turn starts in 0.35 s against 4.4 s cold, with the same reply;
   kept states give way to streams that need the room.
-- **Drafter (`drafter`).** Nanbeige4.1-3B at 4-bit proposing the next tokens, on by default: 85-114 tokens/s on
-  the harness's speed plan against 16.4 undrafted, 23-30 on ordinary greedy chats, 19-28 sampled, replies identical;
-  two greedy streams together run about 10% slower than undrafted on ordinary prompts
-  ([below](#drafter-nanbeige41-3b)). With
-  `drafter = false` the lane core's copy drafts alone accepted 0-30% of their tokens on the harness's prompts and gave
-  no measurable decode gain (drafted 16 tokens/s, undrafted 16).
+- **Drafter (`drafter`).** Nanbeige4.1-3B's bf16 release proposing the next tokens, on by default: 99-114
+  tokens/s on the harness's ruler against 16.3 undrafted, 21-41 on ordinary greedy chats, replies identical; two
+  streams together 45-59 on the ruler against 28-32, 36.1 against 29.0 on fresh prompts
+  ([below](#drafter-nanbeige41-3b)). With `drafter = false` the lane core's copy drafts alone accept 0-30% of their
+  tokens on the harness's prompts and give no measurable decode gain (drafted 16 tokens/s, undrafted 16).
 - **Thinking.** On by default (the template's); it lengthens replies, not the cost a token; prompt speed with it on is
   within 4% of off.
 - **Not offered.** No int8 or fp8 cache, no fast-math, no reduced-precision sums.
@@ -142,85 +149,38 @@ the 33B keeps is one it would have drawn itself, so replies are the same. [Nanbe
 is a plain Llama on the same tokenizer (the same 166,100 ids, merges, special tokens and end tokens), so the engine's
 llama family serves it as the drafter beside the 33B:
 
-- `python3 -m mac convert --drafter` writes its 4-bit conversion (2.63 GiB; `checksums/nanbeige4.1-3b-4bit.sha256`)
-  with the same script as the 33B's variants, and `drafter = true` passes it to the server
-  (`--drafter ~/models/Nanbeige4.1-3B-4bit --drafter-bits 4`).
+- `drafter = true` serves its bf16 release as published (Nanbeige/Nanbeige4.1-3B @ 9c4555c3, 7.33 GiB;
+  `--drafter ~/models/Nanbeige4.1-3B --drafter-bits 0`). Nothing is converted, and the engine refuses quantized
+  drafters by name.
 - Before each round the drafter syncs its own cache to the stream's context (an accepted draft stays, a rejected one
-  is cut), then runs greedy steps chained on the GPU, 3.6 ms each. The depth follows measured rates: the stream's
-  acceptance, the step time and the 33B's window time by rows. A request takes one drafter cache (64 KiB a token, grown
-  in 4,096-row steps as the chat needs) that keeps its tokens between requests, so a continued chat is not fed again.
-- The drafter's weights are lossy, which changes no reply: the 33B's own draws decide every token. The bf16 release of
-  the drafter (`--drafter-bits 0`) lands more drafts but takes 8.5 ms a step and gives no more tokens a second.
+  is cut), then runs greedy steps chained on the GPU, 8.5-8.9 ms each. The depth follows measured rates: the stream's
+  acceptance, the step time and the 33B's window time by rows; with two streams, each round is priced for both, and
+  each stream drafts the depth that lands the most tokens a millisecond for the round. A request takes one drafter
+  cache (64 KiB a token), made or grown to its stream's capacity when the stream is admitted, in the same memory budget
+  as the 33B's caches, checked before anything is allocated; a freed cache keeps its tokens for the next request
+  sharing its prefix, so a continued chat is not fed again, and gives way when a stream needs the room.
 
 Checked in the engine's own tool, which decodes greedily through the drafter's windows: on eight chat prompts (128
 tokens, thinking on and off, English and Chinese) and after a 1,500-token prompt (256 tokens) the drafted tokens
-equal the plain greedy tokens exactly, at 24-46 tokens/s against 16.2, with 1.8-4.1 tokens landing a round
-(the engine doc's table has each prompt). Served, on the harness's plans (`evidence/draft-quick`, `evidence/draft-speed`),
-beside an idle 93 GiB server of another model:
+equal the plain greedy tokens exactly, at 21.1-40.7 tokens/s against 15.8-16.1, with 1.7-4.5 tokens landing a round
+(the engine doc's table has each prompt). Served (engine 50fe245a, no other model loaded):
 
 | | undrafted | drafted |
 |---|---:|---:|
-| one stream, the ruler's prose / code / structured / list (256 tokens) | 16.4 / 16.3 / 16.4 / 16.4 tok/s | 113.5 / 111.0 / 108.5 / 84.9 |
-| two streams together, the same | 31.8 / 28.0 / 31.7 / 31.7 | 63.3 / 64.3 / 63.8 / 58.3 |
-| one stream's rounds | 61 ms, 1 token | 47 ms, 4.9 tokens (81% of drafts land) |
-| three greedy chats, whole requests (prompt and reply) | 15.7 / 16.0 / 16.1 tok/s | 30.2 / 22.9 / 26.6 |
-| first token, resumed turn | 0.23-0.26 s, 0.34 s | 0.23-0.26 s, 0.34 s |
+| one stream, the ruler's prose / code / structured / list (256 tokens) | 16.3 / 16.2 / 16.3 / 16.3 tok/s | 113.9 / 108.3 / 98.6 / 98.9 |
+| two streams together, the same | 31.7 / 27.8 / 31.4 / 31.6 | 44.6 / 59.0 / 54.4 / 55.9 |
+| one stream's rounds | 61.7 ms, 1 token | 46.5 ms, 4.9 tokens (85% of drafts kept) |
+| eight fresh prompts sent two at a time (greedy, 256 tokens, thinking off) | 26.6-30.1 (29.0) | 30.1-40.9 (36.1) |
+| the suite's drafted vs undrafted check, one stream | 16 tok/s | 29 tok/s |
+| first token, short prompt / resumed turn | 0.23-0.26 s / 0.35 s | 0.23-0.26 s / 0.36 s |
 
-The ruler's texts repeat themselves, which the drafter continues almost whole; ordinary chats land 2-4 tokens a
-round for 1.5-3x with greedy draws, less when sampling (one stream at temperature 0.7: 18.7-27.9 tok/s against 16.2,
-the greedy drafts landing less often against sampled draws). Two streams land fewer drafts a round each (the engine
-trims shared rounds' copies by its own prior and runs the two drafts in turn): the ruler's texts still doubled the
-undrafted pair, but two greedy streams on ordinary prompts ran about 10% slower than undrafted (TensorFold's
-`bench_concurrent.py`: 27.8 against 31.0 tok/s together on its chat, 29.5 against 34.1 on its code) and two sampled
-streams the same (24.2 against 24.5). The drafter stays on by default for the single-stream gain; `drafter = false`
-serves two busy streams of greedy requests faster. Every quick-plan check passes with the drafter; the first token
-keeps its time, since the drafter reads the prompt after the model's own prompt pass (about 0.1 s for 1,500 tokens).
-
-## 8-bit and 4-bit variants
-
-`variant = "8bit"` or `"4bit"` (in `local.toml`, or `VARIANT=8bit`) serves an MLX affine conversion of the release,
-groups of 64, made from the downloaded release by the engine's own converter (`tools/zig/llama_convert.py`, numpy
-only): every projection quantized, q|k|v and gate|up fused into one matrix each, the embedding and norms kept bf16.
-
-```bash
-VARIANT=8bit python3 -m mac convert    # model_dir -> model_dir_8bit (~/models/Nanbeige4.3-33B-8bit), 33.8 GiB, about 2 minutes
-(cd ~/models/Nanbeige4.3-33B-8bit && shasum -a 256 -c PATH_TO_THIS_REPO/checksums/nanbeige4.3-33b-8bit.sha256)
-VARIANT=8bit python3 -m mac up
-```
-
-The 4-bit one is the same with `4bit` (18.9 GiB). The shards' hashes in `checksums/` came from numpy 2.5.4.
-
-**What they cost.** Both are lossy conversions of a release that a 256 GB Mac holds in its own precision, so neither
-is the default. Against the release through HF (bf16 on the CPU) over the same 1,500 positions, and the same six
-64-token greedy chats:
-
-| | bf16 (default) | 8-bit | 4-bit |
-|---|---:|---:|---:|
-| mean KL over 1,500 positions | 0.0015 | 0.0023 | 0.082 |
-| top-1 agreement | 99.1% | 98.9% | 91.1% |
-| 64 positions after a 9,000-token prompt: KL, top-1 | 0.0013, 100% | 0.0015, 100% | 0.046, 95.3% |
-| greedy chats equal to HF's over 64 tokens | 3 of 6 (ties) | 4 of 6 (parts at 19 and 55) | 0 of 6 (parts at 4 to 16) |
-
-One-row steps and windows still give the same logits bit for bit, and every serving check passes for each
-(`evidence/8bit-quick`, `evidence/4bit-quick`: structured 18/18, tools 5/5, sampling 9/9, turns, soak 60/60,
-concurrent 12/12, multi-turn 8/8).
-
-**What they gain**, on the same engine commit (`evidence/8bit-speed`, `8bit-prefill`, `4bit-speed`, `4bit-prefill`):
-
-| | bf16 (default) | 8-bit | 4-bit |
-|---|---:|---:|---:|
-| decode, 1 stream | 16.4 tok/s | 28.4-28.9 tok/s | 48.1-48.8 tok/s |
-| decode, 2 streams, all | 28-32 | 52.5-54.1 | 81.3-84.8 |
-| first token (short prompt) | 0.23-0.26 s | 0.13-0.15 s | 0.10-0.12 s |
-| cold prompt 2.1k / 8.3k / 33k / 61k | 1,259 / 1,313 / 1,074 / 866 tok/s | 1,269 / 1,254 / 1,009 / 815 | 1,344 / 1,312 / 1,044 / 836 |
-| resumed turn, first token | 0.34 s | 0.26 s | 0.22 s |
-
-Decode is faster because a step reads 33.8 or 18.9 GiB instead of 61.7; the 8-bit prompts are a little slower
-because the tensor-unit matmul dequantizes on the way in. The 4-bit conversion is a real loss: a mean KL of 0.082, one
-token in eleven chosen differently, and every greedy chat parting from the release within 16 tokens. It is offered for
-the speed, with that cost stated; the 8-bit one keeps the release's choices 98.9% of the time for 1.75x the tokens.
-
-**Quality.** No quality suite was run for the variants either.
+The ruler's texts repeat themselves, which the drafter continues almost whole; ordinary chats land 1.7-4.5 tokens a
+round for 1.3-2.6x with greedy draws. Two streams share each round: every reply keeps its plain solo token ids
+(streams joining, leaving, queued, refused and cancelled), drafting stays on in shared rounds, and the pair still runs
+faster than undrafted on fresh prompts (25% on average). Every quick-plan check passes with the drafter
+(`evidence/draft-quick`); the first token keeps its time, since the drafter reads the prompt after the model's own
+prompt pass. Sampled decode speed was not measured with the bf16 drafter; seeded sampled replies equal the
+undrafted ones (9/9).
 
 ## Notes
 
@@ -233,5 +193,5 @@ the speed, with that cost stated; the 8-bit one keeps the release's choices 98.9
 
 ## License
 
-The recipe is under the [MIT License](LICENSE). Nanbeige4.3-33B is published under Apache 2.0 on
-[Hugging Face](https://huggingface.co/Nanbeige/Nanbeige4.3-33B).
+The recipe is under the [MIT License](LICENSE). Nanbeige4.3-33B and Nanbeige4.1-3B are published under Apache 2.0 on
+Hugging Face ([33B](https://huggingface.co/Nanbeige/Nanbeige4.3-33B), [3B](https://huggingface.co/Nanbeige/Nanbeige4.1-3B)).

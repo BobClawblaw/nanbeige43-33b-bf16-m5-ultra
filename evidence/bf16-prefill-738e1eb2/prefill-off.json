@@ -3,32 +3,32 @@
   "status": 200,
   "prompt_tokens": 2109,
   "cached_tokens": 0,
-  "ttft": 1.569,
-  "tok_s": 1344.2,
+  "ttft": 1.675,
+  "tok_s": 1259.1,
   "error": ""
  },
  "8192": {
   "status": 200,
-  "prompt_tokens": 8253,
+  "prompt_tokens": 8254,
   "cached_tokens": 0,
-  "ttft": 6.289,
-  "tok_s": 1312.3,
+  "ttft": 6.286,
+  "tok_s": 1313.1,
   "error": ""
  },
  "32768": {
   "status": 200,
-  "prompt_tokens": 32831,
+  "prompt_tokens": 32827,
   "cached_tokens": 0,
-  "ttft": 31.459,
-  "tok_s": 1043.6,
+  "ttft": 30.557,
+  "tok_s": 1074.3,
   "error": ""
  },
  "61440": {
   "status": 200,
-  "prompt_tokens": 61500,
+  "prompt_tokens": 61502,
   "cached_tokens": 0,
-  "ttft": 73.544,
-  "tok_s": 836.2,
+  "ttft": 70.991,
+  "tok_s": 866.3,
   "error": ""
  }
 }

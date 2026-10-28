@@ -5,13 +5,13 @@
    "prompt": 6384,
    "cached": 0,
    "tokens": 2700,
-   "rounds": 557,
-   "accepted": 2133,
-   "proposed": 2638,
-   "tokens_a_round": 4.847,
-   "drafts_a_round": 4.736,
-   "accept_rate": 0.8086,
-   "ms_a_round": 46.35
+   "rounds": 555,
+   "accepted": 2132,
+   "proposed": 2482,
+   "tokens_a_round": 4.865,
+   "drafts_a_round": 4.472,
+   "accept_rate": 0.859,
+   "ms_a_round": 47.38
   }
  }
 }
