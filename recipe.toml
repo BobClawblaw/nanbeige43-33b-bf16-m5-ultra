@@ -19,7 +19,7 @@ drafter_dir = "~/models/Nanbeige4.1-3B"
 # TensorFold's native Metal engine with the llama family: a worktree of tensorfold_src at tensorfold_sha, built by
 # `python3 -m mac build` under tf_cache; `binary` names a built tensorfold-native instead
 tensorfold_src = "~/github/TensorFold"   # a clone holding tensorfold_sha (github.com/BobClawblaw/TensorFold)
-tensorfold_sha = "50fe245acd184fd5152b56b6f2545a8a0983ee57"   # branch llama-drafter-pr (PRs #1415 and #1417)
+tensorfold_sha = "c3ee3db24e4e475198bca477989c0a6f1583344c"   # branch llama-drafter-pr (PRs #1415 and #1417)
 zig = "zig"                      # Zig 0.17.0
 zig_cpu = "native"
 binary = ""

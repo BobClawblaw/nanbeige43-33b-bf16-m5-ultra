@@ -62,11 +62,14 @@ server parses into `tool_calls`.
 ## What works, and how it was checked
 
 All on one M5 Ultra (256 GB, macOS 27), checkpoint revision c1093c50. The serving checks, speed and prompt numbers
-were measured on the pinned engine commit 50fe245a on 28 Oct 2026, with no other model loaded
+were measured on engine commit 50fe245a on 28 Oct 2026, with no other model loaded
 (`evidence/bf16-*` without the drafter, `evidence/draft-*` with it), except the 61k and 131k cold prompts and the
 256k setting, measured on the family's first build (738e1eb2, `evidence/bf16-prefill-256k`). The exactness checks
 against Hugging Face and the 128k passphrase check were run on the family's first build too; the pinned build's logits over the same 1,500
-positions are bit-identical to that build's.
+positions are bit-identical to that build's. The pin moved to c3ee3db2 on 29 Oct 2026, a startup change only (the plain
+`--drafter <dir>` serves the bf16 drafter, without `--drafter-bits 0`); the drafted quick and speed plans were run on it
+and match (`evidence/draft-quick-c3ee3db2`: suite all pass, drafts 12/12 equal to undrafted; `evidence/draft-speed-c3ee3db2`:
+one stream 92.5-114.0 tokens/s, two 44.1-58.8).
 
 - **Text, greedy and sampled.** Against Hugging Face's own code (transformers 4.57.1, bf16 on the CPU) on the release:
   1,500 positions teacher-forced, mean KL 0.0015, top-1 99.1%; 64 positions after a 9,000-token prompt, mean KL
@@ -150,7 +153,7 @@ is a plain Llama on the same tokenizer (the same 166,100 ids, merges, special to
 llama family serves it as the drafter beside the 33B:
 
 - `drafter = true` serves its bf16 release as published (Nanbeige/Nanbeige4.1-3B @ 9c4555c3, 7.33 GiB;
-  `--drafter ~/models/Nanbeige4.1-3B --drafter-bits 0`). Nothing is converted, and the engine refuses quantized
+  `--drafter ~/models/Nanbeige4.1-3B`). Nothing is converted, and the engine refuses quantized
   drafters by name.
 - Before each round the drafter syncs its own cache to the stream's context (an accepted draft stays, a rejected one
   is cut), then runs greedy steps chained on the GPU, 8.5-8.9 ms each. The depth follows measured rates: the stream's

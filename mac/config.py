@@ -103,7 +103,7 @@ class Settings:
         if not self.drafts:
             a.append("--no-drafts")
         elif self.drafter:
-            a += ["--drafter", str(self.drafter_model), "--drafter-bits", "0"]
+            a += ["--drafter", str(self.drafter_model)]
         if self.api_key:
             a += ["--api-key", self.api_key]
         a += self.extra_args.split()
