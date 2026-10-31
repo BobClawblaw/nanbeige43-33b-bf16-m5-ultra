@@ -13,7 +13,7 @@ XGRAMMAR_REPO = "https://github.com/mlc-ai/xgrammar"
 
 # where tensorfold_sha lives until the llama family merges upstream
 FORK_REPO = "https://github.com/BobClawblaw/TensorFold"
-FORK_BRANCH = "nanbeige43"
+FORK_BRANCH = "llama-drafter-pr"
 
 
 def _run(cmd: list[str], cwd: Path | None = None) -> None:
@@ -28,8 +28,10 @@ def build_engine(s: Settings, rebuild: bool = False) -> Path:
         raise SystemExit("no tensorfold_sha pinned (local.toml)")
     src = s.path(s.tensorfold_src)
     have = subprocess.run(["git", "-C", str(src), "cat-file", "-e", f"{s.tensorfold_sha}^{{commit}}"], capture_output=True)
-    if have.returncode != 0:  # a clone of upstream TensorFold: the commit is on the fork's branch until it merges
-        _run(["git", "-C", str(src), "fetch", FORK_REPO, FORK_BRANCH])
+    if have.returncode != 0:  # a clone of upstream TensorFold: the commit is on the fork until it merges
+        # by its hash first, which outlives a rebase of the branch; then the branch, for a git that cannot ask for one
+        if subprocess.run(["git", "-C", str(src), "fetch", FORK_REPO, s.tensorfold_sha]).returncode != 0:
+            _run(["git", "-C", str(src), "fetch", FORK_REPO, FORK_BRANCH])
     if not s.worktree.exists():
         s.worktree.parent.mkdir(parents=True, exist_ok=True)
         _run(["git", "-C", str(src), "worktree", "add", "--detach", str(s.worktree), s.tensorfold_sha])
