@@ -113,13 +113,15 @@ chats gain less ([drafter](#drafter-nanbeige41-3b)).
 
 | cold prompt | 2,111 | 8,253 | 32,831 | 61,502 | 131,132 tokens |
 |---|---:|---:|---:|---:|---:|
-| tokens a second | 1,250 | 1,303 | 1,062 | 866 | 563 |
-| time to first token | 1.69 s | 6.33 s | 30.9 s | 71.0 s | 233 s |
+| tokens a second | 1,250 | 1,303 | 1,062 | 866 | 467 |
+| time to first token | 1.69 s | 6.33 s | 30.9 s | 71.0 s | 281 s |
 
 A fresh server, each prompt starting with words no earlier one did, undrafted (`evidence/bf16-prefill`; with thinking
-on, within 1%; with the drafter, 2-4% slower, `evidence/draft-prefill`). The 61k and 131k prompts were measured on
-the family's first build (`evidence/bf16-prefill-738e1eb2`; the 131,132-token prompt on the 262,144-token setting,
-`evidence/bf16-prefill-256k`): a 131k prompt does not fit the default 131,072-token window, which refuses it by name.
+on, within 1%; with the drafter, 2-4% slower, `evidence/draft-prefill`). The 61k prompt was measured on the family's first
+build (`evidence/bf16-prefill-738e1eb2`). The 131,132-token prompt was measured on the pinned build at the
+262,144-token setting with nothing else serving and a load average of 5-7 (`evidence/bf16-prefill-131k`; an earlier 563 tokens/s was measured
+beside another server and is withdrawn); a 131k prompt does not fit the default 131,072-token window, which refuses it
+by name. The pinned build's 2-31k prompts run 1,046-1,283 tokens/s (`evidence/bf16-prefill-32k`).
 A multi-turn chat's third turn, resumed from 5,493 of its 5,649 tokens, starts in 0.35 s against 4.4 s cold
 (`evidence/bf16-speed`; 0.36 s with the drafter).
 
@@ -132,7 +134,7 @@ Each keeps the replies' bits; the numbers are this Mac's (`evidence/`).
   token moves from 0.23-0.26 s to 0.34-0.39 s. The engine's row kernel holds up to 32 rows a launch; the caches set the count.
 - **Weights.** The release's bf16 is exact and is the only form served; no quantized conversion is offered.
 - **Context and memory (`context`, `load_limit_gb`).** 208 KiB a token: 150 GB holds two 131,072-token streams, 192 GB
-  one of 524,288. Cold prompts run 1.1-1.3k tokens/s to 33k tokens, 866 at 61k and 563 at 131k.
+  one of 524,288. Cold prompts run 1.1-1.3k tokens/s to 33k tokens, 866 at 61k and 467 at 131k.
 - **Prompt cache (`prompt_cache_gib`).** A resumed turn starts in 0.35 s against 4.4 s cold, with the same reply;
   kept states give way to streams that need the room.
 - **Drafter (`drafter`).** Nanbeige4.1-3B's bf16 release proposing the next tokens, on by default: 99-114
